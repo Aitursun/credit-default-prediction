@@ -18,9 +18,12 @@ RAW_FILES = {
 }
 
 PROCESSED_FILES = {
-    "final_train": PROC_DATA_DIR / "final_train.parquet",
-    "final_test":  PROC_DATA_DIR / "final_test.parquet",
+    "final_train":       PROC_DATA_DIR / "final_train.parquet",
+    "final_test":        PROC_DATA_DIR / "final_test.parquet",
+    "final_train_clean": PROC_DATA_DIR / "final_train_clean.parquet",
 }
+
+PREPROCESS_PARAMS_PATH = PROC_DATA_DIR / "preprocess_params.joblib"
 
 MODELS_DIR  = ROOT_DIR / "models"
 REPORTS_DIR = ROOT_DIR / "reports"
