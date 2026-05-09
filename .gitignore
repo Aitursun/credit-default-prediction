@@ -1,32 +1,33 @@
-# === Данные и Модели (Data & Models) ===
 data/
-# Даже если файлы .csv лежат в корне, они будут скрыты
 *.csv
 *.xlsx
 *.parquet
-# Скрываем артефакты CatBoost и веса моделей
-catboost_info/
+*.sql
 models/
 *.pkl
 *.joblib
-
-# === Секреты и Личные файлы (Security) ===
+*.model
+catboost_info/
 yes
 yes.pub
 .env
 *.env
-# Локальные настройки IDE
-.claude/
-settings.local.json
-
-# === Python и Окружение (Python Environment) ===
+*.pem
+*.key
 .venv/
+venv/
+env/
 __pycache__/
 *.pyc
-src/__pycache__/
+*.pyo
+*.pyd
 .ipynb_checkpoints/
-
-# === Системные файлы ===
 .vscode/
 .idea/
+.claude/
 .DS_Store
+Thumbs.db
+*.log
+tmp/
+temp/
+settings.local.json
