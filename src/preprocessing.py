@@ -1,6 +1,6 @@
+from typing import Optional
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 
 def analyze_missing(df: pd.DataFrame) -> pd.DataFrame:
@@ -72,7 +72,7 @@ def _is_binary(series: pd.Series) -> bool:
     return set(vals).issubset({0, 1})
 
 
-def fill_missing(df: pd.DataFrame, train_stats: dict | None = None) -> tuple[pd.DataFrame, dict]:
+def fill_missing(df: pd.DataFrame, train_stats: Optional[dict] = None) -> tuple:
     df = df.copy()
     is_train = train_stats is None
     stats_dict = train_stats.copy() if train_stats else {}
@@ -127,7 +127,7 @@ def fill_missing(df: pd.DataFrame, train_stats: dict | None = None) -> tuple[pd.
     return df, stats_dict
 
 
-def winsorize_features(df: pd.DataFrame, percentiles: dict | None = None) -> tuple[pd.DataFrame, dict]:
+def winsorize_features(df: pd.DataFrame, percentiles: Optional[dict] = None) -> tuple:
     is_train = percentiles is None
     pct_dict = percentiles.copy() if percentiles else {}
 
@@ -175,7 +175,7 @@ def remove_multicollinear(
     return df, to_drop
 
 
-def validate(df: pd.DataFrame, target_col: str = "TARGET", original_rows: int | None = None) -> dict:
+def validate(df: pd.DataFrame, target_col: Optional[str] = None, original_rows: Optional[int] = None) -> dict:
     issues = {}
 
     missing = df.isnull().sum().sum()
@@ -200,13 +200,12 @@ def preprocess_pipeline(
     df: pd.DataFrame,
     target_col: str = "TARGET",
     mode: str = "train",
-    params: dict | None = None,
-) -> tuple[pd.DataFrame, dict]:
+    params: Optional[dict] = None,
+) -> tuple:
     is_train = mode == "train"
     p = params.copy() if params else {}
 
     original_rows = len(df)
-    original_target = df[target_col].copy() if target_col in df.columns else None
 
     if is_train:
         cols_to_drop = get_cols_to_drop(df, target_col)
@@ -236,7 +235,7 @@ def preprocess_pipeline(
         p["class_weight_balanced"] = True
         p["scale_pos_weight"] = round(n0 / n1, 4)
 
-    issues = validate(df, target_col, original_rows)
+    issues = validate(df, original_rows)
     if issues:
         print(f"[preprocess_pipeline] Validation issues: {issues}")
 

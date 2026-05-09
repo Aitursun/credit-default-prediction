@@ -7,6 +7,7 @@ def build_installment_features(ins: pd.DataFrame) -> pd.DataFrame:
     ins["PAYMENT_DIFF"] = ins["AMT_INSTALMENT"] - ins["AMT_PAYMENT"]
     ins["DAYS_PAST_DUE"] = ins["DAYS_INSTALMENT"] - ins["DAYS_ENTRY_PAYMENT"]
     ins["IS_OVERDUE"] = (ins["DAYS_PAST_DUE"] > 0).astype(np.int8)
+    ins["PAYMENT_RATIO"] = ins["AMT_PAYMENT"] / ins["AMT_INSTALMENT"].replace(0, np.nan)
 
     result = ins.groupby("SK_ID_CURR").agg(
         INS_COUNT=("SK_ID_PREV", "count"),
@@ -19,7 +20,7 @@ def build_installment_features(ins: pd.DataFrame) -> pd.DataFrame:
         INS_PAYMENT_DIFF_SUM=("PAYMENT_DIFF", "sum"),
         INS_AMT_INSTALMENT_MEAN=("AMT_INSTALMENT", "mean"),
         INS_AMT_PAYMENT_MEAN=("AMT_PAYMENT", "mean"),
-        INS_PAYMENT_RATIO_MEAN=("AMT_PAYMENT", lambda x: (x / ins.loc[x.index, "AMT_INSTALMENT"].replace(0, np.nan)).mean()),
+        INS_PAYMENT_RATIO_MEAN=("PAYMENT_RATIO", "mean"),
     ).reset_index()
 
     result["INS_DPD_MAX"] = result["INS_DPD_MAX"].clip(lower=0)

@@ -1,15 +1,26 @@
-data/
-*.csv
-*.xlsx
-*.parquet
-*.sql
-models/
+# Data files — ignore contents, keep directory markers
+data/**/*.csv
+data/**/*.xlsx
+data/**/*.parquet
+data/**/*.sql
+!data/**/.gitkeep
+
+# Models — ignore binaries, keep directory marker
+models/**
+!models/.gitkeep
 *.pkl
 *.joblib
 *.model
 catboost_info/
-yes
-yes.pub
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+
+# Environment
 .env
 *.env
 *.pem
@@ -17,17 +28,19 @@ yes.pub
 .venv/
 venv/
 env/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.ipynb_checkpoints/
+
+# IDE
 .vscode/
 .idea/
-.claude/
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Logs and temp
 *.log
 tmp/
 temp/
+
+# Claude Code
 settings.local.json

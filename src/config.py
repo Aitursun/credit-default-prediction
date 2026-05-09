@@ -2,9 +2,10 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent.parent
 
-DATA_DIR      = ROOT_DIR / "data"
-RAW_DATA_DIR  = DATA_DIR         
-PROC_DATA_DIR = DATA_DIR / "processed"
+DATA_DIR       = ROOT_DIR / "data"
+RAW_DATA_DIR   = DATA_DIR / "raw"
+INTERIM_DIR    = DATA_DIR / "interim"
+PROC_DATA_DIR  = DATA_DIR / "processed"
 
 RAW_FILES = {
     "train":        RAW_DATA_DIR / "application_train.csv",
@@ -21,6 +22,7 @@ PROCESSED_FILES = {
     "final_train":       PROC_DATA_DIR / "final_train.parquet",
     "final_test":        PROC_DATA_DIR / "final_test.parquet",
     "final_train_clean": PROC_DATA_DIR / "final_train_clean.parquet",
+    "final_test_clean":  PROC_DATA_DIR / "final_test_clean.parquet",
 }
 
 PREPROCESS_PARAMS_PATH = PROC_DATA_DIR / "preprocess_params.joblib"
@@ -33,5 +35,5 @@ ID_COL      = "SK_ID_CURR"
 RANDOM_SEED = 42
 TEST_SIZE   = 0.2
 
-for folder in [PROC_DATA_DIR, MODELS_DIR, REPORTS_DIR]:
+for folder in [RAW_DATA_DIR, INTERIM_DIR, PROC_DATA_DIR, MODELS_DIR, REPORTS_DIR]:
     folder.mkdir(parents=True, exist_ok=True)
