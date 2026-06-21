@@ -112,46 +112,15 @@ def load_thresholds() -> dict:
     return {}
 
 
-
-
-# ─── Калибровка вывода (lookup table) ────────────────────────────────────────
-
-def build_calibration_table(model, X: pd.DataFrame, y: np.ndarray,
-                            n_bins: int = 20) -> tuple[np.ndarray, np.ndarray]:
-    """Строит таблицу соответствия: сырой скор → реальная доля дефолтов.
-
-    Использует квантильные бины — в каждом бине одинаковое число заёмщиков.
-    Возвращает (границы_бинов, доля_дефолтов_в_бине).
-    """
-    probs = predict_proba_safe(model, X)
-    quantiles = np.linspace(0, 100, n_bins + 1)
-    bin_edges = np.percentile(probs, quantiles)
-    bin_edges = np.unique(bin_edges)          # убираем дубли при насыщении
-
-    actual_rates = []
-    for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
-        mask = (probs >= lo) & (probs < hi)
-        if mask.sum() > 0:
-            actual_rates.append(float(y[mask].mean()))
-        else:
-            actual_rates.append(np.nan)
-
-    # Последний бин включает максимум
-    mask_last = probs >= bin_edges[-2]
-    if mask_last.sum() > 0:
-        actual_rates[-1] = float(y[mask_last].mean())
-
-    return bin_edges, np.array(actual_rates)
-
-
-def calibrated_display_prob(raw_prob: float,
-                             bin_edges: np.ndarray,
-                             actual_rates: np.ndarray) -> float:
-    """Возвращает реальную долю дефолтов для заёмщика с данным скором."""
-    idx = np.searchsorted(bin_edges[1:], raw_prob)
-    idx = min(idx, len(actual_rates) - 1)
-    rate = actual_rates[idx]
-    return float(rate) if not np.isnan(rate) else raw_prob
+def compute_threshold_holdout(model_name: str, model, beta: float = 2.0) -> tuple[float, float]:
+    """Fallback: вычисляет порог на 30% holdout если JSON не найден."""
+    from sklearn.model_selection import train_test_split
+    from src.training import load_data
+    X, y = load_data()
+    y_arr = y.to_numpy() if hasattr(y, "to_numpy") else y
+    _, X_val, _, y_val = train_test_split(X, y_arr, test_size=0.3, stratify=y_arr, random_state=42)
+    probs = predict_proba_safe(model, X_val)
+    return find_optimal_threshold(y_val, probs, beta=beta)
 
 
 # ─── Загрузка данных ─────────────────────────────────────────────────────────
@@ -398,7 +367,7 @@ def check_business_rules(income: float, credit: float, annuity: float) -> list[s
 # ─── Зоны риска ──────────────────────────────────────────────────────────────
 
 def get_zone(prob: float, threshold: float = 0.5) -> tuple[str, str, str, str, str]:
-    """Определяет зону риска относительно порога конкретной модели (для сырого скора)."""
+    """Определяет зону риска относительно порога конкретной модели."""
     thr = max(threshold, 1e-6)
     if prob >= thr:
         excess = (prob - thr) / max(1.0 - thr, 1e-6)
@@ -409,45 +378,8 @@ def get_zone(prob: float, threshold: float = 0.5) -> tuple[str, str, str, str, s
     return tuple(ZONE_DATA[idx])
 
 
-# Фиксированные границы зон в пространстве реальных вероятностей дефолта.
-# Базовый уровень дефолтов в данных: 8.1%.
-# Границы основаны на международной практике (Basel II PD grades):
-#   < 2%:   значительно ниже среднего → Очень низкий
-#   2–5%:   ниже среднего              → Низкий
-#   5–10%:  около среднего (8.1%)      → Средний
-#   10–16%: выше среднего, зона решения→ Пограничный
-#   16–25%: высокий риск               → Высокий
-#   > 25%:  очень высокий              → Очень высокий
-_CAL_ZONE_BOUNDS = [0.02, 0.05, 0.10, 0.16, 0.25]
-
-
-def get_zone_calibrated(cal_prob: float) -> tuple[str, str, str, str, str]:
-    """Зона риска по РЕАЛЬНОЙ вероятности дефолта (калиброванной).
-
-    Использует фиксированные границы — одинаковы для всех моделей.
-    """
-    bounds = _CAL_ZONE_BOUNDS
-    if cal_prob < bounds[0]:
-        idx = 0
-    elif cal_prob < bounds[1]:
-        idx = 1
-    elif cal_prob < bounds[2]:
-        idx = 2
-    elif cal_prob < bounds[3]:
-        idx = 3
-    elif cal_prob < bounds[4]:
-        idx = 4
-    else:
-        idx = 5
-    return tuple(ZONE_DATA[idx])
-
-
 def risk_level_label(prob: float, threshold: float) -> str:
     return get_zone(prob, threshold)[1]
-
-
-def risk_level_label_calibrated(cal_prob: float) -> str:
-    return get_zone_calibrated(cal_prob)[1]
 
 
 # ─── Экспорт ─────────────────────────────────────────────────────────────────

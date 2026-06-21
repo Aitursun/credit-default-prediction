@@ -7,7 +7,6 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
-import joblib
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,15 +22,13 @@ from src.evaluation import business_metric
 
 from scoring import (
     FEATURE_EXPLANATIONS, ZONE_DATA, EDU_OPTIONS, EDU_MAP,
-    load_thresholds,
+    load_thresholds, compute_threshold_holdout,
     load_model_from_disk, load_train_stats_from_disk,
     predict_proba_safe, scale_if_needed, build_shap_explainer,
     compute_shap_values, get_ebm_local_importance,
-    check_business_rules, get_zone, get_zone_calibrated,
-    risk_level_label, risk_level_label_calibrated,
+    check_business_rules, get_zone, risk_level_label,
     prepare_single_input, prepare_batch_input,
     generate_excel_report, make_template_csv,
-    build_calibration_table, calibrated_display_prob,
 )
 
 warnings.filterwarnings("ignore")
@@ -86,28 +83,17 @@ def load_train_stats() -> tuple:
 
 @st.cache_data
 def compute_threshold(model_name: str, beta: float = 2.0) -> tuple[float, float]:
-    """Загружает OOF-порог: из модели (model._threshold) или из thresholds.json.
-
-    LightGBM, LogReg, RF, EBM — порог внутри joblib-файла (_threshold).
-    CatBoost — из thresholds.json (не поддерживает кастомные Python-атрибуты).
-    """
-    model = load_model(model_name)
-
-    if hasattr(model, "_threshold") and model._threshold is not None:
-        thr = float(model._threshold)
-        f2  = float(getattr(model, "_threshold_f2", 0.0))
-        logger.info("Порог [%s] из модели: %.4f  F₂=%.4f", model_name.upper(), thr, f2)
-        return thr, f2
-
     thresholds = load_thresholds()
     if model_name in thresholds:
         entry = thresholds[model_name]
         thr, f2 = float(entry["threshold"]), float(entry.get("f2", 0.0))
-        logger.info("Порог [%s] из JSON: %.4f  F₂=%.4f", model_name.upper(), thr, f2)
+        logger.info("Порог [%s] из файла: %.4f  F₂=%.4f", model_name.upper(), thr, f2)
         return thr, f2
-
-    raise ValueError(f"Порог для модели '{model_name}' не найден. "
-                     "Запустите ячейку 14 в ноутбуке 04.")
+    logger.warning("thresholds.json не найден — вычисляю на holdout для %s", model_name.upper())
+    model = load_model(model_name)
+    thr, f2 = compute_threshold_holdout(model_name, model, beta)
+    logger.info("Порог [%s] holdout: %.4f  F₂=%.4f", model_name.upper(), thr, f2)
+    return float(thr), float(f2)
 
 
 @st.cache_resource
@@ -115,68 +101,46 @@ def get_shap_explainer(_model, _X_background: pd.DataFrame, model_name: str):
     return build_shap_explainer(_model, _X_background, model_name)
 
 
-@st.cache_data
-def load_calibration_table(model_name: str) -> tuple:
-    """Таблица: сырой скор → реальная доля дефолтов.
-
-    Использует SHAP-кэш (5000 строк) + TARGET из parquet — быстро, без полного CV.
-    """
-    shap_cache = joblib.load(MODELS_DIR / "lgbm_shap.joblib")
-    X_sample   = shap_cache["X_sample"]                  # 5000 строк, уже загружен
-    sample_idx = shap_cache["sample_idx"]                 # индексы в исходном датасете
-
-    from src.training import load_data
-    _, y_full = load_data()
-    y_sample = y_full.to_numpy()[sample_idx]
-
-    model = load_model(model_name)
-    return build_calibration_table(model, X_sample, y_sample)
-
-
 # ─── UI-компоненты ───────────────────────────────────────────────────────────
 
-def show_gauge(cal_prob: float, cal_threshold: float) -> None:
-    """Gauge в пространстве реальных вероятностей дефолта.
-
-    cal_prob      — калиброванная вероятность дефолта (одинакова для всех моделей).
-    cal_threshold — реальная доля дефолтов на границе решения модели.
-    Фиксированные зоны: 0-3-6-10-15-25-100%.
-    """
-    _, _, zone_color, _, _ = get_zone_calibrated(cal_prob)
-    # Фиксированные границы в % (из _CAL_ZONE_BOUNDS: 2-5-10-16-25)
-    b1, b2, b3, b4, b5 = 2, 5, 10, 16, 25
+def show_gauge(prob: float, threshold: float) -> None:
+    _, _, zone_color, _, _ = get_zone(prob, threshold)
+    t  = threshold
+    b1 = t * 0.25 * 100
+    b2 = t * 0.65 * 100
+    b3 = t * 100
+    b4 = (t + 0.20 * (1 - t)) * 100
+    b5 = (t + 0.50 * (1 - t)) * 100
 
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
-        value=cal_prob * 100,
+        value=prob * 100,
         number={"suffix": "%", "font": {"size": 40}},
-        title={"text": "Вероятность дефолта<br><span style='font-size:12px;color:gray'>Реальная доля дефолтов среди похожих заёмщиков</span>"},
-        delta={"reference": cal_threshold * 100, "valueformat": ".1f",
+        title={"text": "Риск невозврата<br><span style='font-size:12px;color:gray'>Вероятность дефолта</span>"},
+        delta={"reference": threshold * 100, "valueformat": ".1f",
                "increasing": {"color": "red"}, "decreasing": {"color": "green"}},
         gauge={
-            "axis": {"range": [0, 50], "ticksuffix": "%",
-                     "tickvals": [0, b1, b2, b3, b4, b5, 50]},
+            "axis": {"range": [0, 100], "ticksuffix": "%",
+                     "tickvals": [0, round(b1), round(b2), round(b3), round(b4), round(b5), 100]},
             "bar": {"color": zone_color, "thickness": 0.3},
             "steps": [
-                {"range": [0,   b1],  "color": "#c3e6cb"},
-                {"range": [b1,  b2],  "color": "#d4edda"},
-                {"range": [b2,  b3],  "color": "#e8f5d0"},
-                {"range": [b3,  b4],  "color": "#fff3cd"},
-                {"range": [b4,  b5],  "color": "#fde8c8"},
-                {"range": [b5,  50],  "color": "#f8d7da"},
+                {"range": [0,    b1],  "color": "#c3e6cb"},
+                {"range": [b1,   b2],  "color": "#d4edda"},
+                {"range": [b2,   b3],  "color": "#e8f5d0"},
+                {"range": [b3,   b4],  "color": "#fff3cd"},
+                {"range": [b4,   b5],  "color": "#fde8c8"},
+                {"range": [b5, 100],   "color": "#f8d7da"},
             ],
-            "threshold": {"line": {"color": "black", "width": 3},
-                          "thickness": 0.75, "value": cal_threshold * 100},
+            "threshold": {"line": {"color": "black", "width": 3}, "thickness": 0.75, "value": threshold * 100},
         },
     ))
     fig.update_layout(height=280, margin=dict(t=60, b=0, l=20, r=20))
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
-        f"Зоны (одинаковы для всех моделей): "
-        f"0–{b1}% Очень низкий · {b1}–{b2}% Низкий · "
-        f"{b2}–{b3}% Средний · {b3}–{b4}% Пограничный · "
-        f"{b4}–{b5}% Высокий · >{b5}% Очень высокий. "
-        f"Линия — граница решения модели."
+        f"Зоны (от порога {threshold:.1%}): "
+        f"0–{b1:.0f}% Очень низкий · {b1:.0f}–{b2:.0f}% Низкий · "
+        f"{b2:.0f}–{b3:.0f}% Средний · {b3:.0f}–{b4:.0f}% Пограничный · "
+        f"{b4:.0f}–{b5:.0f}% Высокий · {b5:.0f}–100% Очень высокий."
     )
 
 
@@ -590,20 +554,7 @@ with tab1:
         X_input         = r["X_input"]
         _income, _credit, _annuity = r["income"], r["credit"], r["annuity"]
 
-        # Калиброванная вероятность и зона (одинаковы для всех моделей)
-        bin_edges, actual_rates = load_calibration_table(r["model_name"])
-        cal_prob = calibrated_display_prob(prob, bin_edges, actual_rates)
-        cal_threshold = calibrated_display_prob(threshold, bin_edges, actual_rates)
-
-        # Зона и решение — из калиброванного пространства
-        zone_code, zone_label, zone_color, zone_decision, zone_icon = get_zone_calibrated(cal_prob)
-        # Решение (одобрить/отказать) — из сравнения сырого скора с порогом модели
-        model_rejects = prob >= threshold
-        if rule_violations or model_rejects:
-            if zone_code in ("very_low", "low", "medium"):
-                # Модель отказывает, но зона говорит «низкий» — пограничный случай
-                zone_code, zone_label, zone_color = "borderline", "Пограничный", "#e6a817"
-                zone_decision, zone_icon = "РУЧНАЯ ПРОВЕРКА", "⚠️"
+        zone_code, zone_label, zone_color, zone_decision, zone_icon = get_zone(prob, threshold)
         if rule_violations:
             zone_code, zone_label, zone_color = "very_high", "Очень высокий", "#dc3545"
             zone_decision, zone_icon = "АВТО-ОТКАЗ", "❌"
@@ -617,14 +568,7 @@ with tab1:
         else:
             st.error(banner)
 
-        if show_mode_analyst:
-            st.caption(
-                f"Зона риска: **{zone_label}** · "
-                f"Вероятность дефолта: **{cal_prob:.1%}** · "
-                f"Скор модели: {prob:.1%} · Порог (скор): {threshold:.4f}"
-            )
-        else:
-            st.caption(f"Зона риска: **{zone_label}** · Вероятность дефолта: **{cal_prob:.1%}**")
+        st.caption(f"Зона риска: **{zone_label}** · Вероятность: **{prob:.1%}** · Порог F₂: **{threshold:.4f}**")
 
         if rule_violations:
             st.warning("**Автоматический отказ по бизнес-правилам**\n\n"
@@ -635,25 +579,21 @@ with tab1:
             m1.metric("Зона риска",          zone_label)
             m2.metric("Долговая нагрузка",   f"{_annuity/max(_income,1):.1%}")
             m3.metric("Кредит к доходу",     f"{_credit/max(_income,1):.1f}×")
-            m4.metric("Вероятность дефолта", f"{cal_prob:.1%}",
-                      help=f"Реальная доля дефолтов среди похожих заёмщиков. Скор модели: {prob:.1%}")
-            m5.metric("Порог (реальный %)",  f"{cal_threshold:.1%}",
-                      help=f"Граница решения модели в реальных %. Скор-порог: {threshold:.4f}")
-            m6.metric("Решение модели",      "ОТКАЗАТЬ" if model_rejects else "ОДОБРИТЬ")
+            m4.metric("Вероятность дефолта", f"{prob:.1%}")
+            m5.metric("Порог (F₂, β=2)",     f"{threshold:.3f}")
+            m6.metric("Отступ от порога",    f"{(prob-threshold)*100:+.1f} п.п.")
         elif show_mode_specialist:
             m1, m2, m3 = st.columns(3)
-            m1.metric("Зона риска",          zone_label)
-            m2.metric("Долговая нагрузка",   f"{_annuity/max(_income,1):.1%}")
-            m3.metric("Кредит к доходу",     f"{_credit/max(_income,1):.1f}×")
+            m1.metric("Зона риска",        zone_label)
+            m2.metric("Долговая нагрузка", f"{_annuity/max(_income,1):.1%}")
+            m3.metric("Кредит к доходу",   f"{_credit/max(_income,1):.1f}×")
         else:
             m1, m2, m3 = st.columns(3)
-            m1.metric("Вероятность дефолта", f"{cal_prob:.1%}",
-                      help="Реальная доля дефолтов среди заёмщиков с похожим профилем")
-            m2.metric("Граница решения",     f"{cal_threshold:.1%}",
-                      help="Реальный % дефолтов при котором модель говорит «отказать»")
-            m3.metric("Решение",             "ОТКАЗАТЬ ❌" if model_rejects else "ОДОБРИТЬ ✅")
+            m1.metric("Вероятность дефолта", f"{prob:.1%}")
+            m2.metric("Порог (F₂, β=2)",     f"{threshold:.3f}")
+            m3.metric("Отступ от порога",    f"{(prob-threshold)*100:+.1f} п.п.")
 
-        show_gauge(cal_prob, cal_threshold)
+        show_gauge(prob, threshold)
         st.markdown("---")
         st.markdown("### 📊 Почему такое решение?")
         if shap_vals is not None:
@@ -683,7 +623,7 @@ with tab1:
                 )
 
         st.markdown("---")
-        show_recommendation(cal_prob, cal_threshold)
+        show_recommendation(prob, threshold)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
