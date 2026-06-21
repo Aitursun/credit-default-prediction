@@ -174,7 +174,7 @@ def compute_threshold(model_name: str, beta: float = 2.0) -> tuple[float, float]
     return float(threshold), float(fbeta)
 
 
-def _scale_if_needed(model, X: pd.DataFrame | np.ndarray) -> np.ndarray:
+def _scale_if_needed(model, X) -> np.ndarray:
     arr = X.to_numpy(dtype=np.float32) if isinstance(X, pd.DataFrame) else X.astype(np.float32)
     if hasattr(model, "_scaler"):
         arr = model._scaler.transform(arr)
@@ -345,7 +345,7 @@ def compute_shap_values(
     model_name: str,
     X_input: pd.DataFrame,
     X_background: pd.DataFrame,
-) -> tuple[np.ndarray | None, float | None]:
+) -> tuple:
     """Returns (shap_values_1d, expected_value) or (None, None) on failure."""
     explainer = get_shap_explainer(model, X_background, model_name)
     if explainer is None:
@@ -364,7 +364,7 @@ def compute_shap_values(
         return None, None
 
 
-def get_ebm_local_importance(model, X_input: pd.DataFrame) -> tuple[np.ndarray | None, list[str] | None]:
+def get_ebm_local_importance(model, X_input: pd.DataFrame) -> tuple:
     """Extract per-feature scores from EBM explain_local."""
     try:
         local_exp = model.explain_local(X_input, name="local")
@@ -872,6 +872,42 @@ with st.sidebar:
 show_mode_specialist  = display_mode in ("Полный (для всех)", "Только для специалиста")
 show_mode_analyst     = display_mode in ("Полный (для всех)", "Только для аналитика")
 
+# ─── Дефолты формы и сброс ДО создания виджетов ──────────────────────────────
+# Определяем здесь, до табов — иначе session_state.update() не работает после
+# того как виджеты уже зарегистрированы в текущем проходе.
+
+_DEFAULTS: dict = dict(
+    age_input=35, gender_input="Женский", married_input=True,
+    children_input=0, family_size_input=2, car_input=False, realty_input=False,
+    income_input=150_000, credit_input=450_000, term_input=24, annuity_input=18_750,
+    emp_input=3, unemp_input=False,
+    use_ext1_input=True, ext1_input=float(round(medians["EXT_SOURCE_1"], 2)),
+    use_ext2_input=True, ext2_input=float(round(medians["EXT_SOURCE_2"], 2)),
+    use_ext3_input=True, ext3_input=float(round(medians["EXT_SOURCE_3"], 2)),
+)
+
+# Пустые значения для кнопки «Сброс» — чистая форма для нового заёмщика
+_EMPTY: dict = dict(
+    age_input=18, gender_input="Мужской", married_input=False,
+    children_input=0, family_size_input=1, car_input=False, realty_input=False,
+    income_input=0, credit_input=0, term_input=6, annuity_input=0,
+    emp_input=0, unemp_input=False,
+    use_ext1_input=True, ext1_input=0.50,
+    use_ext2_input=True, ext2_input=0.50,
+    use_ext3_input=True, ext3_input=0.50,
+)
+
+# Инициализация при первом запуске
+for _k, _v in _DEFAULTS.items():
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
+
+# Сброс формы: выполняется ДО создания любых виджетов — только здесь update() разрешён
+if st.session_state.pop("_do_reset", False):
+    st.session_state.update(_EMPTY)
+    st.session_state["_show_result"] = False
+
+
 # ─── Tabs ────────────────────────────────────────────────────────────────────
 
 tab1, tab2 = st.tabs(["🔍 Проверить заёмщика", "📋 Загрузить список заявок"])
@@ -882,19 +918,6 @@ tab1, tab2 = st.tabs(["🔍 Проверить заёмщика", "📋 Загр
 with tab1:
     st.header("Оценка отдельного заёмщика")
 
-    # ── Дефолтные значения session_state (первый запуск) ─────────────────────
-    _DEFAULTS: dict = dict(
-        age_input=35, gender_input="Женский", married_input=True,
-        children_input=0, family_size_input=2, car_input=False, realty_input=False,
-        income_input=150_000, credit_input=450_000, term_input=24, annuity_input=18_750,
-        emp_input=3, unemp_input=False,
-        use_ext1_input=True, ext1_input=float(round(medians["EXT_SOURCE_1"], 2)),
-        use_ext2_input=True, ext2_input=float(round(medians["EXT_SOURCE_2"], 2)),
-        use_ext3_input=True, ext3_input=float(round(medians["EXT_SOURCE_3"], 2)),
-    )
-    for _k, _v in _DEFAULTS.items():
-        if _k not in st.session_state:
-            st.session_state[_k] = _v
 
     # ── Пресеты (6 зон риска) ─────────────────────────────────────────────────
     PRESETS: dict[str, dict] = {
@@ -960,6 +983,7 @@ with tab1:
         if col.button(label, use_container_width=True):
             st.session_state.update(values)
             st.session_state.pop("tab1_result", None)
+            st.session_state["_show_result"] = False
             st.rerun()
 
     st.markdown("---")
@@ -1042,11 +1066,26 @@ with tab1:
             ext3 = st.slider("Скоринг бюро 3", 0.0, 1.0, step=0.01,
                              key="ext3_input", disabled=not use_ext3)
 
-    btn_col, clear_col = st.columns([5, 1])
-    submitted = btn_col.button("🔍 Оценить заёмщика", type="primary", use_container_width=True)
-    if clear_col.button("🗑️ Очистить", use_container_width=True,
-                        disabled="tab1_result" not in st.session_state):
-        del st.session_state["tab1_result"]
+    # Валидация: обязательные поля
+    _missing = []
+    if not income:   _missing.append("доход")
+    if not credit:   _missing.append("сумма кредита")
+    if not annuity:  _missing.append("ежемесячный платёж")
+    if not age or age <= 18 and income == 0:
+        pass  # возраст всегда есть (min=18)
+
+    if _missing:
+        st.warning(f"Заполните обязательные поля: **{', '.join(_missing)}**")
+
+    btn_col, clear_col = st.columns([4, 1])
+    submitted = btn_col.button(
+        "🔍 Оценить заёмщика", type="primary", use_container_width=True,
+        disabled=bool(_missing),
+    )
+    if clear_col.button("🗑️ Сброс", use_container_width=True):
+        st.session_state["_do_reset"] = True
+        st.session_state.pop("tab1_result", None)
+        st.rerun()
 
     # ── Вычисление при нажатии — сохраняем в session_state ───────────────────
     if submitted:
@@ -1100,9 +1139,13 @@ with tab1:
             X_input=X_input, income=income, credit=credit, annuity=annuity,
             model_name=selected_model_name,
         )
+        st.session_state["_show_result"] = True
+        # Перерендер нужен чтобы кнопка «Очистить» увидела _show_result=True
+        # и стала кликабельной. Вычисление не повторяется: submitted=False на следующем проходе.
+        st.rerun()
 
     # ── Рендер результата из session_state ───────────────────────────────────
-    if "tab1_result" in st.session_state:
+    if st.session_state.get("_show_result", False) and "tab1_result" in st.session_state:
         r = st.session_state["tab1_result"]
         prob            = r["prob"]
         rule_violations = r["rule_violations"]
