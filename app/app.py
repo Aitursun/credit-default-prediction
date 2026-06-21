@@ -46,10 +46,95 @@ logger = logging.getLogger("credit_scoring")
 
 st.set_page_config(
     page_title="Кредитный скоринг | КГИПИ",
-    page_icon="🏦",
+    page_icon=":material/account_balance:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ─── Глобальные стили (палитра #1E2761) ──────────────────────────────────────
+st.markdown("""
+<style>
+/* ── Заголовки ── */
+h1, h2, h3, h4 { color: #1E2761 !important; }
+
+/* ── Сайдбар ── */
+section[data-testid="stSidebar"] { background-color: #EAF1FC !important; }
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] label { color: #1E2761 !important; }
+
+/* ── Основные кнопки ── */
+button[kind="primary"] {
+    background-color: #1E2761 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+}
+button[kind="primary"]:hover { background-color: #44506B !important; }
+
+/* ── Вторичные кнопки ── */
+button[kind="secondary"] {
+    background-color: #FFFFFF !important;
+    color: #1E2761 !important;
+    border: 1px solid #1E2761 !important;
+}
+button[kind="secondary"]:hover { background-color: #EAF1FC !important; }
+
+/* ── Метрики ── */
+[data-testid="stMetricLabel"]  { color: #44506B !important; font-size: 13px; }
+[data-testid="stMetricValue"]  { color: #1E2761 !important; }
+[data-testid="stMetricDelta"]  { color: #7C88A8 !important; }
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab"] { color: #44506B; border-bottom: 2px solid transparent; }
+.stTabs [aria-selected="true"] {
+    color: #1E2761 !important;
+    border-bottom: 2px solid #1E2761 !important;
+    font-weight: 600;
+}
+
+/* ── Экспандеры ── */
+.streamlit-expanderHeader { color: #1E2761 !important; font-weight: 600; }
+
+/* ── Блоки success/warning/error → фирменная палитра ── */
+div[data-testid="stAlert"][data-alert-type="success"] {
+    background-color: #EAF1FC !important;
+    border-left: 4px solid #1E2761 !important;
+    color: #1E2761 !important;
+}
+div[data-testid="stAlert"][data-alert-type="warning"] {
+    background-color: #C3D3F4 !important;
+    border-left: 4px solid #44506B !important;
+    color: #1E2761 !important;
+}
+div[data-testid="stAlert"][data-alert-type="error"] {
+    background-color: #1E2761 !important;
+    border-left: 4px solid #FFFFFF !important;
+    color: #FFFFFF !important;
+}
+div[data-testid="stAlert"][data-alert-type="info"] {
+    background-color: #CADCFC !important;
+    border-left: 4px solid #7C88A8 !important;
+    color: #1E2761 !important;
+}
+
+/* ── Caption / мелкий текст ── */
+small, .stCaption { color: #7C88A8 !important; }
+
+/* ── Прогресс-бар ── */
+.stProgress > div > div { background-color: #1E2761 !important; }
+
+/* ── Слайдер ── */
+.stSlider [data-baseweb="slider"] [role="slider"] { background-color: #1E2761 !important; }
+
+/* ── Download button ── */
+a[data-testid="stDownloadButton"] button {
+    background-color: #CADCFC !important;
+    color: #1E2761 !important;
+    border: 1px solid #7C88A8 !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ─── UI-константы ────────────────────────────────────────────────────────────
 
@@ -115,32 +200,34 @@ def show_gauge(prob: float, threshold: float) -> None:
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
         value=prob * 100,
-        number={"suffix": "%", "font": {"size": 40}},
-        title={"text": "Риск невозврата<br><span style='font-size:12px;color:gray'>Вероятность дефолта</span>"},
+        number={"suffix": "%", "font": {"size": 36, "color": "#1E2761"}},
+        title={"text": "<span style='font-size:13px;color:#44506B'>Вероятность дефолта</span>"},
         delta={"reference": threshold * 100, "valueformat": ".1f",
-               "increasing": {"color": "red"}, "decreasing": {"color": "green"}},
+               "increasing": {"color": "#dc3545"}, "decreasing": {"color": "#28a745"}},
         gauge={
             "axis": {"range": [0, 100], "ticksuffix": "%",
-                     "tickvals": [0, round(b1), round(b2), round(b3), round(b4), round(b5), 100]},
+                     "tickvals": [0, round(b1), round(b2), round(b3), round(b4), round(b5), 100],
+                     "tickcolor": "#44506B", "tickfont": {"size": 10}},
             "bar": {"color": zone_color, "thickness": 0.3},
             "steps": [
-                {"range": [0,    b1],  "color": "#c3e6cb"},
-                {"range": [b1,   b2],  "color": "#d4edda"},
-                {"range": [b2,   b3],  "color": "#e8f5d0"},
-                {"range": [b3,   b4],  "color": "#fff3cd"},
-                {"range": [b4,   b5],  "color": "#fde8c8"},
-                {"range": [b5, 100],   "color": "#f8d7da"},
+                {"range": [0,     b1],  "color": "#d4edda"},
+                {"range": [b1,    b2],  "color": "#e8f5d0"},
+                {"range": [b2,    b3],  "color": "#fff3cd"},
+                {"range": [b3,    b4],  "color": "#fde8c8"},
+                {"range": [b4,    b5],  "color": "#f8d0c8"},
+                {"range": [b5,   100],  "color": "#f8d7da"},
             ],
-            "threshold": {"line": {"color": "black", "width": 3}, "thickness": 0.75, "value": threshold * 100},
+            "threshold": {"line": {"color": "#1E2761", "width": 3}, "thickness": 0.75, "value": threshold * 100},
         },
     ))
-    fig.update_layout(height=280, margin=dict(t=60, b=0, l=20, r=20))
+    fig.update_layout(height=260, margin=dict(t=40, b=0, l=10, r=10),
+                      paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF")
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
-        f"Зоны (от порога {threshold:.1%}): "
+        f"Зоны (порог {threshold:.1%}): "
         f"0–{b1:.0f}% Очень низкий · {b1:.0f}–{b2:.0f}% Низкий · "
         f"{b2:.0f}–{b3:.0f}% Средний · {b3:.0f}–{b4:.0f}% Пограничный · "
-        f"{b4:.0f}–{b5:.0f}% Высокий · {b5:.0f}–100% Очень высокий."
+        f"{b4:.0f}–{b5:.0f}% Высокий · >{b5:.0f}% Очень высокий."
     )
 
 
@@ -170,16 +257,16 @@ def show_factors(shap_vals: np.ndarray, feature_cols: list[str],
             st.markdown("---")
 
     with col_risk:
-        st.markdown("### 🔴 Факторы риска")
+        st.markdown("### Факторы риска")
         for f, s, v in risk_items:
-            _item(col_risk, f, s, v, "🔴")
+            _item(col_risk, f, s, v, ":material/arrow_upward:")
         if not risk_items:
             st.info("Значимых факторов риска не выявлено.")
 
     with col_safe:
-        st.markdown("### 🟢 Защитные факторы")
+        st.markdown("### Защитные факторы")
         for f, s, v in safe_items:
-            _item(col_safe, f, s, v, "🟢")
+            _item(col_safe, f, s, v, ":material/arrow_downward:")
         if not safe_items:
             st.info("Защитных факторов не выявлено.")
 
@@ -210,7 +297,7 @@ def show_waterfall(shap_vals: np.ndarray, expected_value: float,
         top = sorted(zip(feature_cols, shap_vals), key=lambda x: abs(x[1]), reverse=True)[:12]
         st.dataframe(pd.DataFrame([{
             "Переменная": f, "Название": FEATURE_EXPLANATIONS.get(f, (f,))[0],
-            "Влияние": "⬆️ Риск" if v > 0 else "⬇️ Риск", val_col_name: f"{v:+.3f}",
+            "Влияние": "↑ Риск" if v > 0 else "↓ Безопасно", val_col_name: f"{v:+.3f}",
         } for f, v in top]), hide_index=True, use_container_width=True)
 
 
@@ -221,25 +308,25 @@ def show_quick_stats(income: float, credit: float, annuity: float, term: int = 0
     cti = credit  / income
     remainder = income - annuity
     cols = st.columns(4) if term > 0 else st.columns(3)
-    cols[0].metric("💳 Долговая нагрузка", f"{dti:.1%}",
-                   delta="норма ✅" if dti < 0.30 else "превышение ⚠️",
+    cols[0].metric("Долговая нагрузка", f"{dti:.1%}",
+                   delta="норма" if dti < 0.30 else "превышение",
                    delta_color="normal" if dti < 0.30 else "inverse",
                    help="Платёж / месячный доход. Норма: до 30%.")
     cols[0].caption(f"ANNUITY_INCOME_RATIO = {dti:.4f}")
-    cols[1].metric("📊 Кредит к месячному доходу", f"{cti:.0f}×",
-                   delta="норма ✅" if cti <= 240 else "высокое ⚠️",
+    cols[1].metric("Кредит к доходу", f"{cti:.0f}×",
+                   delta="норма" if cti <= 240 else "высокое",
                    delta_color="normal" if cti <= 240 else "inverse",
                    help="Кредит / месячный доход. Норма: до 240× (20 лет).")
     cols[1].caption(f"CREDIT_INCOME_RATIO = {cti:.4f}")
-    cols[2].metric("💰 Остаток после платежа", f"{remainder:,.0f} сом/мес",
-                   delta="положительный ✅" if remainder > 0 else "отрицательный ❌",
+    cols[2].metric("Остаток после платежа", f"{remainder:,.0f} сом/мес",
+                   delta="положит." if remainder > 0 else "отрицат.",
                    delta_color="normal" if remainder > 0 else "inverse",
                    help="Сколько остаётся после выплаты кредита.")
     cols[2].caption("AMT_INCOME_TOTAL − AMT_ANNUITY")
     if term > 0:
         total = annuity * term
         overpay = total - credit
-        cols[3].metric("📅 Всего выплат", f"{total:,.0f} сом",
+        cols[3].metric("Всего выплат", f"{total:,.0f} сом",
                        delta=f"переплата {overpay:,.0f}" if overpay > 0 else "без переплаты",
                        delta_color="inverse" if overpay > 0 else "normal",
                        help=f"Сумма платежей за {term} мес. без учёта ставки.")
@@ -277,7 +364,7 @@ def show_recommendation(prob: float, threshold: float) -> None:
 # ─── Сайдбар ─────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("🏦 Кредитный скоринг")
+    st.title("Кредитный скоринг")
     st.caption("ВКР · КГИПИ · 2026")
     st.markdown("---")
     st.markdown("**── Модель ──**")
@@ -290,8 +377,9 @@ with st.sidebar:
     st.markdown("**── О системе ──**")
     st.info("ℹ️ Система оценивает вероятность невозврата кредита. "
             "Решение носит **рекомендательный** характер.")
-    st.download_button("📥 Шаблон CSV", data=make_template_csv(),
-                       file_name="template_scoring.csv", mime="text/csv")
+    st.download_button("Скачать шаблон", data=make_template_csv(),
+                       file_name="template_scoring.csv", mime="text/csv",
+                       icon=":material/download:")
 
 # ─── Загрузка ресурсов ───────────────────────────────────────────────────────
 
@@ -341,7 +429,7 @@ if st.session_state.pop("_do_reset", False):
 
 # ─── Табы ────────────────────────────────────────────────────────────────────
 
-tab1, tab2 = st.tabs(["🔍 Проверить заёмщика", "📋 Загрузить список заявок"])
+tab1, tab2 = st.tabs(["Проверить заёмщика", "Загрузить список заявок"])
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TAB 1 — Оценка отдельного заёмщика
@@ -350,61 +438,88 @@ with tab1:
     st.header("Оценка отдельного заёмщика")
 
     # ── Пресеты ───────────────────────────────────────────────────────────────
-    PRESETS: dict[str, dict] = {
-        "✅ Очень\nнизкий": dict(
+    # Material Icons (Google Material Design — открытый источник, Apache 2.0)
+    # https://fonts.google.com/icons
+    PRESETS: dict[str, tuple[str, dict]] = {
+        "Очень низкий": (":material/check_circle:", dict(
             age_input=50, gender_input="Женский", married_input=True,
             children_input=0, family_size_input=2, car_input=True, realty_input=True,
             income_input=320_000, credit_input=250_000, term_input=25, annuity_input=10_000,
             emp_input=18, unemp_input=False, edu_input="Высшее образование",
             use_ext1_input=True, ext1_input=0.88, use_ext2_input=True, ext2_input=0.90,
             use_ext3_input=True, ext3_input=0.85,
-        ),
-        "✅ Низкий": dict(
+        )),
+        "Низкий": (":material/task_alt:", dict(
             age_input=40, gender_input="Женский", married_input=True,
             children_input=0, family_size_input=2, car_input=False, realty_input=True,
             income_input=180_000, credit_input=250_000, term_input=20, annuity_input=12_500,
             emp_input=7, unemp_input=False, edu_input="Высшее образование",
             use_ext1_input=True, ext1_input=0.55, use_ext2_input=True, ext2_input=0.58,
             use_ext3_input=True, ext3_input=0.53,
-        ),
-        "✅ Средний": dict(
+        )),
+        "Средний": (":material/info:", dict(
             age_input=34, gender_input="Женский", married_input=True,
             children_input=1, family_size_input=3, car_input=False, realty_input=False,
             income_input=120_000, credit_input=280_000, term_input=16, annuity_input=18_000,
             emp_input=3, unemp_input=False, edu_input="Среднее / среднее специальное",
             use_ext1_input=True, ext1_input=0.42, use_ext2_input=True, ext2_input=0.44,
             use_ext3_input=True, ext3_input=0.40,
-        ),
-        "⚠️ Погранич-\nный": dict(
+        )),
+        "Пограничный": (":material/warning:", dict(
             age_input=28, gender_input="Женский", married_input=False,
             children_input=0, family_size_input=1, car_input=False, realty_input=False,
             income_input=90_000, credit_input=270_000, term_input=15, annuity_input=18_000,
             emp_input=2, unemp_input=False, edu_input="Среднее / среднее специальное",
             use_ext1_input=True, ext1_input=0.32, use_ext2_input=True, ext2_input=0.35,
             use_ext3_input=True, ext3_input=0.30,
-        ),
-        "⛔ Высокий": dict(
+        )),
+        "Высокий": (":material/error:", dict(
             age_input=25, gender_input="Мужской", married_input=False,
             children_input=1, family_size_input=2, car_input=False, realty_input=False,
             income_input=58_000, credit_input=280_000, term_input=12, annuity_input=23_000,
             emp_input=1, unemp_input=False, edu_input="Неполное среднее",
             use_ext1_input=True, ext1_input=0.12, use_ext2_input=True, ext2_input=0.14,
             use_ext3_input=True, ext3_input=0.11,
-        ),
-        "❌ Очень\nвысокий": dict(
+        )),
+        "Очень высокий": (":material/cancel:", dict(
             age_input=21, gender_input="Мужской", married_input=False,
             children_input=2, family_size_input=3, car_input=False, realty_input=False,
             income_input=35_000, credit_input=240_000, term_input=15, annuity_input=16_000,
             emp_input=0, unemp_input=True, edu_input="Неполное среднее",
             use_ext1_input=True, ext1_input=0.05, use_ext2_input=True, ext2_input=0.06,
             use_ext3_input=True, ext3_input=0.05,
-        ),
+        )),
     }
+
+    # Пастельные цвета карточек (фон, текст) — соответствуют зонам риска
+    _PRESET_COLORS = [
+        ("#d4edda", "#1a7a3c"),  # Очень низкий — пастельный зелёный
+        ("#c8f0d0", "#155724"),  # Низкий       — светло-зелёный
+        ("#e8f5d0", "#3d6b0e"),  # Средний      — жёлто-зелёный
+        ("#fff3cd", "#856404"),  # Пограничный  — пастельный янтарь
+        ("#ffe0b2", "#7a3500"),  # Высокий      — пастельный оранжевый
+        ("#f8d7da", "#721c24"),  # Очень высокий— пастельный красный
+    ]
+    # CSS для карточек — каждый класс привязан к своему цвету
+    _preset_styles = "".join(
+        f".pcard-{i} button[kind='secondary'] "
+        f"{{ background-color:{bg} !important; color:{fg} !important; "
+        f"border:1px solid {fg}55 !important; font-weight:600; border-radius:8px; }}"
+        f".pcard-{i} button[kind='secondary']:hover "
+        f"{{ background-color:{fg}25 !important; }}"
+        for i, (bg, fg) in enumerate(_PRESET_COLORS)
+    )
+    st.markdown(f"<style>{_preset_styles}</style>", unsafe_allow_html=True)
 
     st.caption("Примеры для всех зон риска:")
     preset_cols = st.columns(6)
-    for col, (label, values) in zip(preset_cols, PRESETS.items()):
-        if col.button(label, use_container_width=True):
+    for i, (col, (label, (icon, values))) in enumerate(zip(preset_cols, PRESETS.items())):
+        with col:
+            st.markdown(f'<div class="pcard-{i}">', unsafe_allow_html=True)
+            clicked = st.button(label, use_container_width=True, icon=icon,
+                                key=f"preset_btn_{i}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        if clicked:
             st.session_state.update(values)
             st.session_state.pop("tab1_result", None)
             st.session_state["_show_result"] = False
@@ -465,7 +580,7 @@ with tab1:
     show_quick_stats(float(income), float(credit), float(annuity), int(term))
 
     # ── Кредитная история ─────────────────────────────────────────────────────
-    with st.expander("▶ Кредитная история (необязательно)", expanded=False):
+    with st.expander("Кредитная история (необязательно)", expanded=False):
         st.caption("0 = плохая история, 1 = отличная. Снимите галочку, если данных нет.")
         sc1, sc2, sc3 = st.columns(3)
         with sc1:
@@ -488,9 +603,9 @@ with tab1:
         st.warning(f"Заполните обязательные поля: **{', '.join(_missing)}**")
 
     btn_col, clear_col = st.columns([4, 1])
-    submitted = btn_col.button("🔍 Оценить заёмщика", type="primary",
+    submitted = btn_col.button("Оценить заёмщика", type="primary", icon=":material/search:",
                                use_container_width=True, disabled=bool(_missing))
-    if clear_col.button("🗑️ Сброс", use_container_width=True):
+    if clear_col.button("Сброс", icon=":material/refresh:", use_container_width=True):
         st.session_state["_do_reset"] = True
         st.session_state.pop("tab1_result", None)
         st.rerun()
@@ -557,7 +672,7 @@ with tab1:
         zone_code, zone_label, zone_color, zone_decision, zone_icon = get_zone(prob, threshold)
         if rule_violations:
             zone_code, zone_label, zone_color = "very_high", "Очень высокий", "#dc3545"
-            zone_decision, zone_icon = "АВТО-ОТКАЗ", "❌"
+            zone_decision, zone_icon = "АВТО-ОТКАЗ", "✕"
 
         st.markdown("---")
         banner = f"## {zone_icon}  {zone_decision}"
@@ -595,7 +710,7 @@ with tab1:
 
         show_gauge(prob, threshold)
         st.markdown("---")
-        st.markdown("### 📊 Почему такое решение?")
+        st.markdown("### Почему такое решение?")
         if shap_vals is not None:
             show_factors(shap_vals, feature_cols, X_input, display_mode)
         else:
@@ -604,9 +719,9 @@ with tab1:
         if show_mode_analyst and shap_vals is not None and expected_value is not None:
             is_ebm = r["model_name"] == "ebm"
             expander_label = (
-                "📈 Детальный анализ (EBM — встроенная интерпретация)"
+                "Детальный анализ (EBM — встроенная интерпретация)"
                 if is_ebm else
-                "📈 Детальный SHAP-анализ"
+                "Детальный SHAP-анализ"
             )
             with st.expander(expander_label, expanded=(display_mode == "Только для аналитика")):
                 if is_ebm:
@@ -632,7 +747,7 @@ with tab1:
 with tab2:
     st.header("Пакетная оценка заявок")
     st.info(
-        "📋 **Пакетная оценка заявок**\n\n"
+        "**Пакетная оценка заявок**\n\n"
         "Загрузите CSV или Excel. Система оценит риск по каждой заявке.\n\n"
         f"Обязательные колонки: **{', '.join(REQUIRED_BATCH_COLS)}**. "
         "Остальные будут заполнены средними значениями по базе."
@@ -643,25 +758,25 @@ with tab2:
         uploaded = st.file_uploader("Выберите файл", type=["csv", "xlsx", "xls"])
     with dl_col:
         st.markdown("<br>", unsafe_allow_html=True)
-        st.download_button("📥 Скачать шаблон", data=make_template_csv(),
+        st.download_button("Скачать шаблон", data=make_template_csv(),
                            file_name="template_scoring.csv", mime="text/csv")
 
     if uploaded is not None:
         try:
             raw_df = pd.read_excel(uploaded) if uploaded.name.endswith((".xlsx", ".xls")) else pd.read_csv(uploaded)
         except Exception as e:
-            st.error(f"❌ Не удалось прочитать файл.\n\n{e}"); st.stop()
+            st.error(f"Не удалось прочитать файл.\n\n{e}"); st.stop()
         if raw_df.empty:
-            st.error("❌ Файл пустой."); st.stop()
+            st.error("Файл пустой."); st.stop()
 
-        st.success(f"✅ **{uploaded.name}** · {len(raw_df):,} заявок · {len(raw_df.columns)} колонок")
+        st.success(f" **{uploaded.name}** · {len(raw_df):,} заявок · {len(raw_df.columns)} колонок")
         st.dataframe(raw_df.head(5), use_container_width=True)
 
         miss = [c for c in REQUIRED_BATCH_COLS if c not in raw_df.columns]
         if miss:
-            st.warning(f"⚠️ Отсутствуют: **{', '.join(miss)}** — будут заполнены средними.")
+            st.warning(f"Отсутствуют: **{', '.join(miss)}** — будут заполнены средними.")
 
-        if st.button("▶ Запустить оценку", type="primary", use_container_width=True):
+        if st.button("Запустить оценку", type="primary", icon=":material/play_arrow:", use_container_width=True):
             progress = st.progress(0, text="Подготовка данных…")
             try:
                 X_batch = prepare_batch_input(raw_df, medians, feature_cols)
@@ -690,13 +805,13 @@ with tab2:
                         result_df.loc[_hard.values, "decision"]   = "Отказать"
                         result_df.loc[_hard.values, "risk_level"] = "Очень высокий"
                         logger.warning("Батч: %d строк — бизнес-правила", n_h)
-                        st.warning(f"⚠️ **{n_h} заявок** отклонено по бизнес-правилам (DTI ≥ 80% или кредит > 240× дохода).")
+                        st.warning(f"**{n_h} заявок** отклонено по бизнес-правилам (DTI ≥ 80% или кредит > 240× дохода).")
 
                 progress.progress(100, text="Готово!")
 
             except Exception as e:
                 logger.error("Ошибка батч-обработки: %s", e, exc_info=True)
-                st.error(f"❌ Ошибка: {e}"); st.stop()
+                st.error(f"Ошибка: {e}"); st.stop()
 
             # ── Сводка ────────────────────────────────────────────────────────
             st.markdown("---")
@@ -710,8 +825,8 @@ with tab2:
 
             sm1, sm2, sm3, sm4 = st.columns(4)
             sm1.metric("Всего заявок",  f"{n_total:,}")
-            sm2.metric("Одобрено ✅",    f"{n_approved:,} ({n_approved/n_total:.1%})")
-            sm3.metric("Отказано ❌",    f"{n_rejected:,} ({n_rejected/n_total:.1%})")
+            sm2.metric("Одобрено",    f"{n_approved:,} ({n_approved/n_total:.1%})")
+            sm3.metric("Отказано",    f"{n_rejected:,} ({n_rejected/n_total:.1%})")
             sm4.metric("Средний риск",   f"{mean_prob:.1%}")
 
             if TARGET_COL in raw_df.columns and show_mode_analyst:
@@ -752,10 +867,10 @@ with tab2:
 
             # Аналитика
             if show_mode_analyst:
-                with st.expander("📈 Аналитика по портфелю", expanded=False):
+                with st.expander("Аналитика по портфелю", expanded=False):
                     an1, an2 = st.columns(2)
                     with an1:
-                        st.subheader("⚠️ Топ-10 рискованных")
+                        st.subheader("Топ-10 рискованных")
                         top10 = [c for c in [ID_COL, "default_prob_pct", "risk_level", "decision"]
                                  if c in result_df.columns]
                         st.dataframe(result_df.nlargest(10, "default_prob")[top10],
@@ -770,7 +885,7 @@ with tab2:
                     if TARGET_COL in raw_df.columns:
                         st.markdown("---")
                         bm = business_metric(y_true_b, y_pred_b)
-                        st.info(f"💰 **Бизнес-метрика:**  \n"
+                        st.info(f"**Бизнес-метрика:**  \n"
                                 f"Пропущено дефолтов (FN): **{bm['fn']}**  \n"
                                 f"Ложных отказов (FP): **{bm['fp']}**  \n"
                                 f"Издержки (FN×1 + FP×5): **{bm['total_cost']:.0f}**")
@@ -779,9 +894,9 @@ with tab2:
             st.markdown("---")
             dl1, dl2 = st.columns(2)
             ts = datetime.now().strftime("%Y%m%d_%H%M")
-            dl1.download_button("⬇️ Excel", data=generate_excel_report(result_df, threshold, selected_model_name),
+            dl1.download_button("Скачать Excel", data=generate_excel_report(result_df, threshold, selected_model_name),
                                 file_name=f"scoring_{ts}.xlsx",
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 type="primary")
-            dl2.download_button("⬇️ CSV", data=result_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig"),
+            dl2.download_button("Скачать CSV", data=result_df.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig"),
                                 file_name=f"scoring_{ts}.csv", mime="text/csv")
