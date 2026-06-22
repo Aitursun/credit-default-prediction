@@ -643,11 +643,19 @@ with tab1:
         if shap_vals is None and selected_model_name == "ebm":
             ebm_scores, ebm_names = get_ebm_local_importance(model, X_input)
             if ebm_scores is not None:
-                idx_map = {n: i for i, n in enumerate(feature_cols)}
                 shap_vals = np.zeros(len(feature_cols))
+                # EBM обучен на numpy array → возвращает 'feature_0000', 'feature_0001'...
+                # Маппинг по индексу (не по имени): feature_0042 → feature_cols[42]
                 for n, s in zip(ebm_names, ebm_scores):
-                    if n in idx_map:
-                        shap_vals[idx_map[n]] = s
+                    if n.startswith("feature_"):
+                        parts = n.split("_")
+                        if len(parts) == 2:  # одиночный признак, не взаимодействие
+                            try:
+                                idx = int(parts[1])
+                                if 0 <= idx < len(shap_vals):
+                                    shap_vals[idx] = s
+                            except ValueError:
+                                pass
                 expected_value = 0.0
 
         st.session_state["tab1_result"] = dict(
